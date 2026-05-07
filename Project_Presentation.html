@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hardware Trojan Lab - Defensive Analysis Presentation</title>
+  <style>
+    :root {
+      --bg: #09111f;
+      --bg-2: #101b2c;
+      --panel: #162235;
+      --panel-2: #1d2a40;
+      --line: #2e405d;
+      --text: #eef5ff;
+      --muted: #a8b8ce;
+      --accent: #2dd4bf;
+      --accent-2: #8bd450;
+      --warn: #f5c542;
+      --danger: #ff6b6b;
+      --blue: #74a7ff;
+      --code: #07101d;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+      --radius: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    body {
+      background:
+        radial-gradient(circle at 16% 12%, rgba(45, 212, 191, 0.12), transparent 26%),
+        linear-gradient(135deg, #07101d 0%, #101b2c 52%, #0d1728 100%);
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    button:hover, button:focus-visible {
+      border-color: var(--accent);
+      outline: none;
+      background: rgba(45, 212, 191, 0.1);
+    }
+
+    .deck {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      padding: 72px 86px 86px;
+      overflow: hidden;
+    }
+
+    .slide.active {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 24px;
+      animation: slideIn 220ms ease-out;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      font-size: clamp(48px, 7vw, 92px);
+      line-height: 0.96;
+      letter-spacing: 0;
+      max-width: 1060px;
+    }
+
+    h2 {
+      font-size: clamp(36px, 4.5vw, 60px);
+      line-height: 1.03;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: clamp(18px, 2vw, 25px);
+      line-height: 1.45;
+      max-width: 940px;
+    }
+
+    .body {
+      min-height: 0;
+      display: grid;
+      align-items: stretch;
+      gap: 22px;
+    }
+
+    .two { grid-template-columns: 1fr 1fr; }
+    .two-wide { grid-template-columns: 1.2fr 0.8fr; }
+    .three { grid-template-columns: repeat(3, 1fr); }
+    .four { grid-template-columns: repeat(4, 1fr); }
+
+    .panel, .card, .metric, .code, .table-wrap {
+      background: rgba(22, 34, 53, 0.9);
+      border: 1px solid rgba(168, 184, 206, 0.16);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .panel, .card {
+      padding: 24px;
+      min-height: 0;
+    }
+
+    .panel.tight, .card.tight { padding: 18px; }
+
+    .card p, .panel p, li {
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 1rem;
+    }
+
+    ul {
+      margin: 12px 0 0 18px;
+      padding: 0;
+    }
+
+    li + li { margin-top: 8px; }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .metric {
+      padding: 18px;
+      min-height: 116px;
+    }
+
+    .metric .value {
+      font-size: 42px;
+      font-weight: 900;
+      color: var(--accent);
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .metric .label {
+      color: var(--muted);
+      font-size: 0.93rem;
+      line-height: 1.35;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 11px;
+      border-bottom: 1px solid rgba(168, 184, 206, 0.15);
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--accent);
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(45, 212, 191, 0.06);
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .table-wrap {
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .table-wrap table { min-width: 720px; }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border: 1px solid rgba(45, 212, 191, 0.35);
+      border-radius: 999px;
+      color: var(--accent);
+      background: rgba(45, 212, 191, 0.08);
+      font-size: 0.78rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .tag.green { color: var(--accent-2); border-color: rgba(139, 212, 80, 0.35); background: rgba(139, 212, 80, 0.08); }
+    .tag.yellow { color: var(--warn); border-color: rgba(245, 197, 66, 0.4); background: rgba(245, 197, 66, 0.08); }
+    .tag.red { color: var(--danger); border-color: rgba(255, 107, 107, 0.4); background: rgba(255, 107, 107, 0.08); }
+    .tag.blue { color: var(--blue); border-color: rgba(116, 167, 255, 0.38); background: rgba(116, 167, 255, 0.08); }
+
+    .code {
+      background: var(--code);
+      color: #d6e6ff;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.78rem;
+      line-height: 1.48;
+      padding: 18px;
+      overflow: auto;
+      white-space: pre;
+      min-height: 0;
+    }
+
+    .hl { color: var(--accent); font-weight: 800; }
+    .muted { color: var(--muted); }
+    .warn { color: var(--warn); }
+    .danger { color: var(--danger); }
+    .blue { color: var(--blue); }
+
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .flow .node {
+      min-height: 122px;
+      padding: 18px;
+      border: 1px solid rgba(45, 212, 191, 0.32);
+      background: rgba(45, 212, 191, 0.06);
+      border-radius: 8px;
+    }
+
+    .arrow {
+      color: var(--accent);
+      font-weight: 900;
+      font-size: 30px;
+    }
+
+    .bars {
+      display: grid;
+      gap: 16px;
+      align-content: center;
+      height: 100%;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 70px 1fr 70px;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .bar-track {
+      height: 24px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--blue));
+      width: var(--w);
+    }
+
+    .circuit {
+      position: relative;
+      min-height: 280px;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, rgba(45, 212, 191, 0.1) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(116, 167, 255, 0.08) 1px, transparent 1px),
+        rgba(22, 34, 53, 0.72);
+      background-size: 34px 34px;
+      border: 1px solid rgba(45, 212, 191, 0.18);
+      border-radius: 8px;
+    }
+
+    .chip {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 300px;
+      height: 150px;
+      border-radius: 8px;
+      border: 2px solid rgba(45, 212, 191, 0.65);
+      background: linear-gradient(135deg, rgba(8, 19, 34, 0.96), rgba(28, 44, 68, 0.96));
+      box-shadow: 0 0 34px rgba(45, 212, 191, 0.17);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 18px;
+    }
+
+    .pin {
+      position: absolute;
+      height: 2px;
+      width: 90px;
+      background: rgba(45, 212, 191, 0.55);
+    }
+
+    .pin.p1 { left: 0; top: 38%; }
+    .pin.p2 { left: 0; top: 62%; }
+    .pin.p3 { right: 0; top: 38%; }
+    .pin.p4 { right: 0; top: 62%; }
+    .pulse {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      top: calc(38% - 4px);
+      left: 0;
+      animation: pulseMove 3.2s linear infinite;
+      box-shadow: 0 0 18px var(--accent);
+    }
+
+    @keyframes pulseMove {
+      0% { left: 0; opacity: 0; }
+      12% { opacity: 1; }
+      80% { opacity: 1; }
+      100% { left: calc(100% - 10px); opacity: 0; }
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+    }
+
+    .step {
+      position: relative;
+      padding: 18px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      min-height: 150px;
+    }
+
+    .step .num {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #06111f;
+      font-weight: 900;
+      margin-bottom: 12px;
+    }
+
+    .controls {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 50;
+      padding: 8px;
+      border-radius: 12px;
+      background: rgba(7, 16, 29, 0.78);
+      border: 1px solid rgba(168, 184, 206, 0.16);
+      backdrop-filter: blur(16px);
+    }
+
+    .controls button {
+      width: 42px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .counter {
+      color: var(--muted);
+      min-width: 92px;
+      text-align: center;
+      font-weight: 800;
+      font-size: 0.9rem;
+    }
+
+    .progress {
+      position: fixed;
+      left: 0;
+      bottom: 0;
+      height: 4px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.08);
+      z-index: 60;
+    }
+
+    .progress span {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--accent), var(--blue));
+      transition: width 180ms ease;
+    }
+
+    .overview {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      padding: 38px;
+      background: rgba(7, 16, 29, 0.95);
+      overflow: auto;
+    }
+
+    .overview.open { display: block; }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .thumb {
+      min-height: 128px;
+      text-align: left;
+      padding: 16px;
+      border-radius: 8px;
+    }
+
+    .thumb strong { display: block; margin-bottom: 8px; }
+    .thumb span { color: var(--muted); font-size: 0.84rem; line-height: 1.35; }
+
+    .note {
+      border-left: 3px solid var(--accent);
+      padding-left: 14px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .compact-list li { font-size: 0.92rem; }
+
+    .small { font-size: 0.86rem; }
+
+    .task-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: rgba(45, 212, 191, 0.14);
+      color: var(--accent);
+      border: 1px solid rgba(45, 212, 191, 0.28);
+      font-weight: 900;
+    }
+
+    .artifact-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .artifact {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    @media (max-width: 900px) {
+      .slide {
+        padding: 54px 24px 82px;
+        overflow-y: auto;
+      }
+      .slide.active { display: block; }
+      .body, .two, .two-wide, .three, .four, .metric-grid, .timeline, .flow {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+      .arrow { display: none; }
+      h1 { font-size: 44px; }
+      h2 { font-size: 34px; margin-bottom: 18px; }
+      .panel, .card { margin-bottom: 14px; }
+      .controls { left: 12px; right: 12px; transform: none; justify-content: center; }
+    }
+
+    @media print {
+      html, body { overflow: visible; background: white; color: black; }
+      .slide {
+        position: static;
+        display: block !important;
+        page-break-after: always;
+        height: 100vh;
+        color: black;
+        background: white;
+      }
+      .controls, .progress, .overview { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" id="deck">
+    <section class="slide active" data-title="Title">
+      <div class="topline">
+        <div class="eyebrow">LLM4Security Hardware Trojan Lab</div>
+        <span class="tag blue">Defensive RTL analysis</span>
+      </div>
+      <div class="body two-wide">
+        <div class="panel" style="display:grid;align-content:center;gap:22px;">
+          <h1>Hardware Trojan Findings</h1>
+          <p class="subtitle">A defensive study of AI-generated RTL modifications, vulnerability patterns, syntax validation, and a lightweight heuristic detector.</p>
+          <div class="metric-grid">
+            <div class="metric"><div class="value">12</div><div class="label">Trojaned Verilog samples analyzed</div></div>
+            <div class="metric"><div class="value">4</div><div class="label">Vulnerability types: T1-T4</div></div>
+            <div class="metric"><div class="value">100%</div><div class="label">Detector recall on generated samples</div></div>
+            <div class="metric"><div class="value">0</div><div class="label">Medium/High false positives on clean baselines</div></div>
+          </div>
+        </div>
+        <div class="circuit" aria-label="Animated circuit board graphic">
+          <div class="pin p1"></div><div class="pin p2"></div><div class="pin p3"></div><div class="pin p4"></div>
+          <div class="pulse"></div>
+          <div class="chip">
+            <div>
+              <div class="eyebrow">Generated RTL</div>
+              <h3>Trigger + Payload</h3>
+              <p>Static analysis turns suspicious logic into evidence.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Assignment Map">
+      <div class="topline"><div><div class="eyebrow">Project instructions</div><h2>Five required tasks, one repo story</h2></div><span class="tag">Project_Instructions.pdf</span></div>
+      <div class="body">
+        <div class="timeline">
+          <div class="step"><div class="num">1</div><h3>Taxonomy + safety</h3><p>Locate T1-T4, explain each category, and document safe defensive use.</p></div>
+          <div class="step"><div class="num">2</div><h3>Single-sample analysis</h3><p>Pick one Trojaned RTL sample and identify trigger, payload, and modified signals.</p></div>
+          <div class="step"><div class="num">3</div><h3>Cross-sample comparison</h3><p>Run analysis utilities and summarize patterns per vulnerability type.</p></div>
+          <div class="step"><div class="num">4</div><h3>Validation & testing</h3><p>Run notebook validation, record pass/fail status, and discuss issues.</p></div>
+          <div class="step"><div class="num">5</div><h3>Mini defense heuristic</h3><p>Implement a lightweight detector and evaluate false positives and negatives.</p></div>
+        </div>
+        <div class="panel">
+          <h3>Presentation thesis</h3>
+          <p class="subtitle">Across the generated samples, the most reliable Trojan signal is not a single suspicious token. It is a rare trigger that gates a payload capable of corruption, leakage, denial of service, or silent power/performance damage.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Safety">
+      <div class="topline"><div><div class="eyebrow">Task 1</div><h2>Safety posture and scope</h2></div><span class="tag green">Defensive-only lab</span></div>
+      <div class="body two">
+        <div class="panel">
+          <h3>Safety statement</h3>
+          <ul>
+            <li>All work is restricted to toy designs and generated course artifacts in this repo.</li>
+            <li>No secrets are committed. `.env` is ignored and OpenRouter keys are loaded locally.</li>
+            <li>Generated Trojaned RTL is treated as defensive training data, not deployable hardware.</li>
+            <li>The detector is a triage tool for review, not proof of malicious intent.</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Repo evidence</h3>
+          <div class="artifact-list">
+            <div class="artifact"><span>Notebook with saved outputs</span><span class="tag">.ipynb</span></div>
+            <div class="artifact"><span>Pattern summary</span><span class="tag">MD</span></div>
+            <div class="artifact"><span>Validation report</span><span class="tag">MD</span></div>
+            <div class="artifact"><span>Detector implementation</span><span class="tag">PY</span></div>
+            <div class="artifact"><span>Detector results</span><span class="tag">MD</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Taxonomy">
+      <div class="topline"><div><div class="eyebrow">Task 1</div><h2>T1-T4 vulnerability taxonomy</h2></div><span class="tag">GHOST_Trojan_GPT.py</span></div>
+      <div class="body">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Type</th><th>Definition</th><th>Defensive interpretation</th><th>Typical observable footprint</th></tr></thead>
+            <tbody>
+              <tr><td><span class="tag">T1</span></td><td>Change functionality</td><td>Computes incorrect results under rare conditions.</td><td>Counter thresholds, rare compares, output/datapath corruption.</td></tr>
+              <tr><td><span class="tag">T2</span></td><td>Leak information</td><td>Covertly exposes internal data or side-channel state.</td><td>Shadow buffers, sequence detectors, leak ports, XOR/parity paths.</td></tr>
+              <tr><td><span class="tag">T3</span></td><td>Denial of service</td><td>Disables, stalls, or forces outputs after activation.</td><td>Long event counters, active flags, forced zero/idle output.</td></tr>
+              <tr><td><span class="tag">T4</span></td><td>Performance degradation</td><td>Preserves outputs while increasing power, switching, or thermal load.</td><td>High-toggle registers, accumulators, feedback shifts, power-sink state.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">The taxonomy is useful because it separates trigger behavior from impact. The same trigger style, such as a rare counter threshold, can lead to different payload classes.</div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Single Sample">
+      <div class="topline"><div><div class="eyebrow">Task 2</div><h2>Single-sample analysis: ALU T2 leak</h2></div><span class="tag blue">alu_simple_HT2</span></div>
+      <div class="body two-wide">
+        <div class="code">17  // trojan_insertion_begin //
+18  reg [3:0] trigger_state;
+19  reg [7:0] secret_buffer;
+...
+26  // Internal observer: Buffering intermediate 'a' data
+27  secret_buffer &lt;= a;
+29  // Sequence Detector
+30  if (op == 3'b010 &amp;&amp; trigger_state == 4'h0) trigger_state &lt;= 4'h1;
+31  else if (op == 3'b011 &amp;&amp; trigger_state == 4'h1) trigger_state &lt;= 4'h2;
+32  else if (op == 3'b001 &amp;&amp; trigger_state == 4'h2) trigger_state &lt;= 4'hF;
+...
+45  // Leakage mechanism: default case leaks buffered data
+46  default: result = (trigger_state == 4'hF) ? secret_buffer : 8'b0;</div>
+        <div class="panel">
+          <h3>Trigger and payload table</h3>
+          <table>
+            <tbody>
+              <tr><th>Trigger</th><td>Temporal ALU op sequence: AND `010`, OR `011`, SUB `001`.</td></tr>
+              <tr><th>Payload</th><td>Leaks buffered `a` input through `result` in the default case.</td></tr>
+              <tr><th>Modified signals</th><td>`trigger_state`, `secret_buffer`, `result`, and added `clk`/`rst_n` control.</td></tr>
+              <tr><th>Why stealthy</th><td>Normal ALU operations remain correct until a rare multi-cycle sequence is observed.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Generated Corpus">
+      <div class="topline"><div><div class="eyebrow">Task 3</div><h2>Generated sample corpus</h2></div><span class="tag">12 Verilog + 12 taxonomy files</span></div>
+      <div class="body two">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Type</th><th>Generated designs</th><th>Count</th></tr></thead>
+            <tbody>
+              <tr><td><span class="tag">T1</span></td><td>`aes_sbox`, `alu_simple`, `shift_reg`, `uart_controller`</td><td>4</td></tr>
+              <tr><td><span class="tag">T2</span></td><td>`aes_sbox`, `alu_simple`, `shift_reg`, `uart_controller`</td><td>4</td></tr>
+              <tr><td><span class="tag">T3</span></td><td>`aes_sbox`, `uart_controller`</td><td>2</td></tr>
+              <tr><td><span class="tag">T4</span></td><td>`aes_sbox`, `uart_controller`</td><td>2</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel">
+          <h3>Notebook analysis note</h3>
+          <p>The analysis utility found 12 Trojaned designs and 12 taxonomy files. Its filename parser grouped them as `Unknown` because design names such as `aes_sbox` contain underscores before the `HTx` token.</p>
+          <p style="margin-top:14px;">The taxonomy files correctly identify each sample, so the final comparison uses taxonomy metadata rather than the fragile filename split.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Patterns">
+      <div class="topline"><div><div class="eyebrow">Task 3</div><h2>Cross-sample patterns by vulnerability type</h2></div><span class="tag">summary.md evidence</span></div>
+      <div class="body">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Type</th><th>Trigger pattern</th><th>Payload pattern</th><th>Common structures</th></tr></thead>
+            <tbody>
+              <tr><td>T1</td><td>Time/event counters plus rare values: `0xFFFF`, `a == 0xFF`, UART event overflow.</td><td>Wrong constants, off-by-one ALU result, inverted shift or TX bit.</td><td>Hidden counters, flags, rare comparators.</td></tr>
+              <tr><td>T2</td><td>Sequence, duration, and pattern triggers: 16 cycles, op sequences, key matches, 255-cycle delay.</td><td>Data leakage through outputs or side-channel style modulation.</td><td>Shadow buffers, sequence detectors, leak ports, XOR/parity logic.</td></tr>
+              <tr><td>T3</td><td>Rare event counters: 65,535 occurrences of uncommon byte values.</td><td>Forced zero/idle output causing availability failure.</td><td>Long counters, active flags, output override muxes.</td></tr>
+              <tr><td>T4</td><td>Specific input or event activation, then persistent activity.</td><td>High-toggle state while nominal outputs remain correct.</td><td>Power sink registers, accumulators, circular shifts.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Static Metrics">
+      <div class="topline"><div><div class="eyebrow">Task 3</div><h2>Static metrics reveal payload complexity</h2></div><span class="tag">Generated Verilog</span></div>
+      <div class="body two">
+        <div class="panel">
+          <h3>Average lines per file</h3>
+          <div class="bars">
+            <div class="bar-row"><span>T1</span><div class="bar-track"><div class="bar-fill" style="--w:78%"></div></div><span>48.2</span></div>
+            <div class="bar-row"><span>T2</span><div class="bar-track"><div class="bar-fill" style="--w:94%"></div></div><span>57.8</span></div>
+            <div class="bar-row"><span>T3</span><div class="bar-track"><div class="bar-fill" style="--w:93%"></div></div><span>57.5</span></div>
+            <div class="bar-row"><span>T4</span><div class="bar-track"><div class="bar-fill" style="--w:100%"></div></div><span>61.5</span></div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Type</th><th>Files</th><th>Avg. ifs</th><th>Avg. regs</th><th>Avg. constants</th><th>Avg. comparisons</th></tr></thead>
+            <tbody>
+              <tr><td>T1</td><td>4</td><td>3.5</td><td>2.5</td><td>10.2</td><td>1.5</td></tr>
+              <tr><td>T2</td><td>4</td><td>4.8</td><td>3.8</td><td>14.8</td><td>2.8</td></tr>
+              <tr><td>T3</td><td>2</td><td>4.5</td><td>3.5</td><td>14.5</td><td>2.0</td></tr>
+              <tr><td>T4</td><td>2</td><td>5.5</td><td>4.5</td><td>15.5</td><td>1.0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Validation">
+      <div class="topline"><div><div class="eyebrow">Task 4</div><h2>Notebook validation results</h2></div><span class="tag green">Syntax checks passed</span></div>
+      <div class="body two">
+        <div class="metric-grid">
+          <div class="metric"><div class="value">12</div><div class="label">Files discovered by validation function</div></div>
+          <div class="metric"><div class="value">5</div><div class="label">Files actually validated due to `[:5]` loop limit</div></div>
+          <div class="metric"><div class="value">5/5</div><div class="label">Module structure found</div></div>
+          <div class="metric"><div class="value">5/5</div><div class="label">Syntax validation passed</div></div>
+        </div>
+        <div class="panel">
+          <h3>Key issue</h3>
+          <p>The validation function reports "Validating 12 Trojaned designs", but the implementation checks only the first five files. We preserved that limitation in the report rather than overstating coverage.</p>
+          <div class="note" style="margin-top:18px;">No optional functional testbench was saved in the notebook output. The evidence covers module structure, marker detection, suspicious-pattern checks, and `iverilog` syntax validation.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Validation Table">
+      <div class="topline"><div><div class="eyebrow">Task 4</div><h2>Pass/fail table from validation log</h2></div><span class="tag">Trojan_Validation_Report.md</span></div>
+      <div class="body">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Sample</th><th>Type</th><th>Module</th><th>Markers</th><th>Suspicious patterns</th><th>Syntax</th><th>Issues</th></tr></thead>
+            <tbody>
+              <tr><td>alu_simple_HT2</td><td>T2</td><td>Pass</td><td>Pass</td><td>10</td><td>Pass</td><td>None</td></tr>
+              <tr><td>alu_simple_HT1</td><td>T1</td><td>Pass</td><td>Pass</td><td>3</td><td>Pass</td><td>None</td></tr>
+              <tr><td>shift_reg_HT1</td><td>T1</td><td>Pass</td><td>Pass</td><td>3</td><td>Pass</td><td>None</td></tr>
+              <tr><td>shift_reg_HT2</td><td>T2</td><td>Pass</td><td>Pass</td><td>3</td><td>Pass</td><td>None</td></tr>
+              <tr><td>aes_sbox_HT1</td><td>T1</td><td>Pass</td><td>Pass</td><td>4</td><td>Pass</td><td>None</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="subtitle">Interpretation: the generated RTL samples are syntactically usable for static analysis and defensive detector development.</p>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Detector Rationale">
+      <div class="topline"><div><div class="eyebrow">Task 5</div><h2>Detector design rationale</h2></div><span class="tag">Heuristic_Trojan_Detector_Plan.txt</span></div>
+      <div class="body">
+        <div class="flow">
+          <div class="node"><h3>1. Extract facts</h3><p>Inputs, outputs, regs, counters, assignments, if conditions, and suspicious identifiers.</p></div>
+          <div class="arrow">›</div>
+          <div class="node"><h3>2. Score evidence</h3><p>Separate trigger evidence from payload evidence so benign counters do not dominate.</p></div>
+          <div class="arrow">›</div>
+          <div class="node"><h3>3. Link trigger to payload</h3><p>High confidence requires payload assignment near a rare trigger guard.</p></div>
+        </div>
+        <div class="panel">
+          <h3>Core principle</h3>
+          <p class="subtitle">A single counter or constant is not enough. A strong Trojan signal is a rare trigger paired with a behavior-changing, leaking, disabling, or high-toggle payload.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Scoring Scheme">
+      <div class="topline"><div><div class="eyebrow">Task 5</div><h2>Scoring scheme</h2></div><span class="tag blue">Explainable, additive, static</span></div>
+      <div class="body">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Score bucket</th><th>Feature</th><th>Points</th><th>Why it matters</th></tr></thead>
+            <tbody>
+              <tr><td>Trigger</td><td>Long counter threshold, e.g. `16'hFFFF`, `>= 255`</td><td>+3</td><td>Classic time bomb or rare-event activation.</td></tr>
+              <tr><td>Trigger</td><td>Magic constant compare on input/control signal</td><td>+2</td><td>Rare activation values are unlikely during normal tests.</td></tr>
+              <tr><td>Trigger</td><td>Sticky trigger/active latch</td><td>+2</td><td>Records activation after the rare condition disappears.</td></tr>
+              <tr><td>Trigger</td><td>Sequence detector state machine</td><td>+2</td><td>Hides activation behind multi-cycle behavior.</td></tr>
+              <tr><td>Payload</td><td>Output override or forced constant output</td><td>+3</td><td>Direct evidence of corruption or denial of service.</td></tr>
+              <tr><td>Payload</td><td>Output depends on secret/shadow/internal buffer</td><td>+3</td><td>Strong leak-information signal.</td></tr>
+              <tr><td>Payload</td><td>High-toggle wide register unused by outputs</td><td>+3</td><td>Performance or power degradation payload.</td></tr>
+              <tr><td>Payload</td><td>Arithmetic corruption, XOR/parity, or leak-like port</td><td>+2</td><td>Captures T1 and T2 payload mechanics.</td></tr>
+              <tr><td>Link</td><td>Payload assignment inside or near trigger/active guard</td><td>+2 to +3</td><td>Links suspicious activation to suspicious effect.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">Risk rule: High when trigger >= 4, payload >= 4, and link >= 2. Medium when total score is high with either trigger or payload strong. Low is a review hint, not a positive detection.</div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Detector Implementation">
+      <div class="topline"><div><div class="eyebrow">Task 5</div><h2>Implementation decisions</h2></div><span class="tag">heuristic_trojan_detector.py</span></div>
+      <div class="body two">
+        <div class="panel">
+          <h3>What the detector does</h3>
+          <ul>
+            <li>Strips comments before scoring, so `trojan` marker comments do not drive results.</li>
+            <li>Infers known labels from `_HT1_` through `_HT4_` filenames for evaluation.</li>
+            <li>Scores trigger, payload, and link evidence independently.</li>
+            <li>Predicts T1-T4 class from dominant payload mechanics.</li>
+          </ul>
+        </div>
+        <div class="code">result = analyze_verilog_file(path)
+risk = High if (
+  trigger_score &gt;= 4 and
+  payload_score &gt;= 4 and
+  link_score &gt;= 2
+)
+
+detection_pass = risk in {"Medium", "High"}
+classification_pass = predicted_type == known_type</div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Detector Results">
+      <div class="topline"><div><div class="eyebrow">Task 5</div><h2>Detector evaluation results</h2></div><span class="tag green">12/12 detected, 12/12 classified</span></div>
+      <div class="body">
+        <div class="metric-grid">
+          <div class="metric"><div class="value">12/12</div><div class="label">Trojaned files detected as Medium/High risk</div></div>
+          <div class="metric"><div class="value">12/12</div><div class="label">Correct T1-T4 classifications</div></div>
+          <div class="metric"><div class="value">12</div><div class="label">High-risk Trojaned files</div></div>
+          <div class="metric"><div class="value">0</div><div class="label">Medium/High false positives on clean baseline</div></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Type</th><th>Examples detected</th><th>Dominant evidence</th></tr></thead>
+            <tbody>
+              <tr><td>T1</td><td>4/4</td><td>Long counter or rare condition plus functional corruption.</td></tr>
+              <tr><td>T2</td><td>4/4</td><td>Sequence/duration trigger plus shadow buffer, leak, XOR, or output dependence.</td></tr>
+              <tr><td>T3</td><td>2/2</td><td>Rare event counter plus forced zero/idle output.</td></tr>
+              <tr><td>T4</td><td>2/2</td><td>Specific trigger plus high-toggle power-sink behavior.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="False Positives">
+      <div class="topline"><div><div class="eyebrow">Task 5</div><h2>False-positive sanity check</h2></div><span class="tag green">0/4 flagged</span></div>
+      <div class="body two">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Clean file</th><th>Risk</th><th>Detector positive?</th><th>Interpretation</th></tr></thead>
+            <tbody>
+              <tr><td>alu_simple.v</td><td>None</td><td>No</td><td>No suspicious trigger/payload evidence.</td></tr>
+              <tr><td>shift_reg.v</td><td>None</td><td>No</td><td>Normal shift behavior was not enough to trigger.</td></tr>
+              <tr><td>aes_sbox.v</td><td>Low</td><td>No</td><td>AES constants look suspicious but lack trigger linkage.</td></tr>
+              <tr><td>uart_controller.v</td><td>Low</td><td>No</td><td>UART counters and idle assignments are benign protocol behavior.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel">
+          <h3>Why this matters</h3>
+          <p>A naive detector would flag AES constants or UART counters. Our detector requires rare-trigger and payload-link evidence before escalating to Medium/High risk.</p>
+          <div class="note" style="margin-top:18px;">Remaining false negatives are possible for Trojans that avoid counters, magic constants, suspicious names, or obvious trigger-gated assignments.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Findings">
+      <div class="topline"><div><div class="eyebrow">Synthesis</div><h2>What we learned</h2></div><span class="tag">Defender takeaways</span></div>
+      <div class="body three">
+        <div class="card">
+          <h3>1. Rare triggers dominate stealth</h3>
+          <p>Long counters, uncommon byte values, and multi-cycle sequences repeatedly appear across T1-T4.</p>
+        </div>
+        <div class="card">
+          <h3>2. Payload class changes the review path</h3>
+          <p>T1/T3 are output correctness and availability issues. T2/T4 may remain functionally silent unless side channels or switching activity are inspected.</p>
+        </div>
+        <div class="card">
+          <h3>3. Explainability is essential</h3>
+          <p>A useful detector must tell reviewers why a file was flagged, not merely return a suspicious-pattern count.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Artifacts">
+      <div class="topline"><div><div class="eyebrow">Reproducibility</div><h2>Repo artifacts and demo path</h2></div><span class="tag blue">Ready to review</span></div>
+      <div class="body two">
+        <div class="panel">
+          <h3>Primary artifacts</h3>
+          <div class="artifact-list">
+            <div class="artifact"><span>Hardware_Trojan_Insertion_Lab.ipynb</span><span class="tag">Executed notebook</span></div>
+            <div class="artifact"><span>Trojan_Insertion_Patterns.md</span><span class="tag">Task 3</span></div>
+            <div class="artifact"><span>Trojan_Validation_Report.md</span><span class="tag">Task 4</span></div>
+            <div class="artifact"><span>heuristic_trojan_detector.py</span><span class="tag">Task 5</span></div>
+            <div class="artifact"><span>Heuristic_Detector_Results.md</span><span class="tag">Evaluation</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Suggested live demo</h3>
+          <ul>
+            <li>Open `Trojan_Insertion_Patterns.md` to show cross-type evidence.</li>
+            <li>Open the ALU T2 Verilog sample and point to trigger/payload lines.</li>
+            <li>Run `python3 heuristic_trojan_detector.py trojan_outputs/google_gemini-3-flash-preview`.</li>
+            <li>Show notebook Task 5A/5B cells with saved pass/fail output.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Close">
+      <div class="topline"><div class="eyebrow">Final message</div><span class="tag green">Prime-time summary</span></div>
+      <div class="body two-wide">
+        <div class="panel" style="display:grid;align-content:center;gap:20px;">
+          <h2>Trigger plus payload is the right unit of analysis.</h2>
+          <p class="subtitle">The sample set shows that counters and constants are common, but the strongest defensive signal is when rare activation logic gates corruption, leakage, denial of service, or high-toggle payload behavior.</p>
+        </div>
+        <div class="panel">
+          <h3>Bottom line</h3>
+          <div class="metric-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="metric"><div class="value">5/5</div><div class="label">Assignment tasks addressed</div></div>
+            <div class="metric"><div class="value">0</div><div class="label">Secrets committed</div></div>
+            <div class="metric"><div class="value">100%</div><div class="label">Detector detection rate</div></div>
+            <div class="metric"><div class="value">0</div><div class="label">Observed Medium/High false positives</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="controls" aria-label="Presentation controls">
+    <button id="prev" title="Previous slide" aria-label="Previous slide">‹</button>
+    <button id="overviewBtn" title="Slide overview" aria-label="Slide overview">□</button>
+    <div class="counter" id="counter">1 / 18</div>
+    <button id="next" title="Next slide" aria-label="Next slide">›</button>
+  </div>
+  <div class="progress"><span id="progress"></span></div>
+
+  <aside class="overview" id="overview" aria-label="Slide overview">
+    <div class="topline">
+      <div><div class="eyebrow">Overview</div><h2>Jump to slide</h2></div>
+      <button id="closeOverview" style="padding:10px 14px;">Close</button>
+    </div>
+    <div class="overview-grid" id="overviewGrid"></div>
+  </aside>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const counter = document.getElementById('counter');
+    const progress = document.getElementById('progress');
+    const overview = document.getElementById('overview');
+    const overviewGrid = document.getElementById('overviewGrid');
+    let index = 0;
+
+    function showSlide(nextIndex) {
+      index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+      slides.forEach((slide, i) => slide.classList.toggle('active', i === index));
+      counter.textContent = `${index + 1} / ${slides.length}`;
+      progress.style.width = `${((index + 1) / slides.length) * 100}%`;
+      history.replaceState(null, '', `#${index + 1}`);
+    }
+
+    function buildOverview() {
+      overviewGrid.innerHTML = '';
+      slides.forEach((slide, i) => {
+        const button = document.createElement('button');
+        button.className = 'thumb';
+        button.innerHTML = `<strong>${i + 1}. ${slide.dataset.title || 'Slide'}</strong><span>${slide.querySelector('h2,h1')?.textContent || ''}</span>`;
+        button.addEventListener('click', () => {
+          overview.classList.remove('open');
+          showSlide(i);
+        });
+        overviewGrid.appendChild(button);
+      });
+    }
+
+    document.getElementById('prev').addEventListener('click', () => showSlide(index - 1));
+    document.getElementById('next').addEventListener('click', () => showSlide(index + 1));
+    document.getElementById('overviewBtn').addEventListener('click', () => overview.classList.add('open'));
+    document.getElementById('closeOverview').addEventListener('click', () => overview.classList.remove('open'));
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') {
+        event.preventDefault();
+        showSlide(index + 1);
+      }
+      if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+        event.preventDefault();
+        showSlide(index - 1);
+      }
+      if (event.key.toLowerCase() === 'o') overview.classList.toggle('open');
+      if (event.key === 'Escape') overview.classList.remove('open');
+      if (event.key === 'Home') showSlide(0);
+      if (event.key === 'End') showSlide(slides.length - 1);
+    });
+
+    buildOverview();
+    const hashIndex = Number(location.hash.replace('#', '')) - 1;
+    showSlide(Number.isFinite(hashIndex) && hashIndex >= 0 ? hashIndex : 0);
+  </script>
+</body>
+</html>
