@@ -1,0 +1,7 @@
+openai
+tqdm
+
+# Optional backends retained by GHOST_Trojan_GPT.py
+anthropic
+google-genai
+together

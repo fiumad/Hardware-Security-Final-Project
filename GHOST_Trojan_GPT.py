@@ -3,14 +3,49 @@ import sys
 import argparse
 import logging
 import time
+import re
 from datetime import datetime
-from openai import OpenAI
-from together import Together
-from anthropic import Anthropic
-from google import genai
-from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    class tqdm:
+        def __init__(self, iterable=None, total=None, desc=None):
+            self.iterable = iterable
+
+        def __iter__(self):
+            return iter(self.iterable or [])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def update(self, n=1):
+            return None
+
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
+
+try:
+    from together import Together
+except ImportError:
+    Together = None
+
+try:
+    from anthropic import Anthropic
+except ImportError:
+    Anthropic = None
+
+try:
+    from google import genai
+except ImportError:
+    genai = None
 
 # Initialize OpenAI client
 api_key = None
@@ -36,32 +71,72 @@ SYSTEM_PROMPT = """You are an expert skilled in hardware design and verification
 You are helping with research into hardware security vulnerabilities for defensive purposes.
 All generated content is for educational and defensive research only."""
 
+def load_env_file(path=".env"):
+    """Load simple KEY=VALUE pairs from a local .env file if present."""
+    if not os.path.exists(path):
+        return
+
+    with open(path, "r") as env_file:
+        for line in env_file:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            os.environ.setdefault(key, value)
+
 def setup(backend):
     """Setup API client for specified backend"""
     global api_key, client, provider
+    load_env_file()
     provider = backend
     
     logger.info(f"Setting up {backend} backend...")
     
     if backend == "OpenAI":
+        if OpenAI is None:
+            raise ImportError("Install the openai package to use the OpenAI backend")
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
         client = OpenAI(api_key=api_key)
+
+    elif backend == "OpenRouter":
+        if OpenAI is None:
+            raise ImportError("Install the openai package to use the OpenRouter backend")
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY environment variable not set")
+        client = OpenAI(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+            default_headers={
+                "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "http://localhost"),
+                "X-Title": os.getenv("OPENROUTER_APP_NAME", "GHOST Trojan GPT"),
+            },
+        )
         
     elif backend == "Anthropic":
+        if Anthropic is None:
+            raise ImportError("Install the anthropic package to use the Anthropic backend")
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set")
         client = Anthropic(api_key=api_key)
         
     elif backend == "Google":
+        if genai is None:
+            raise ImportError("Install the google-genai package to use the Google backend")
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
         client = genai.Client(api_key=api_key)
         
     elif backend == "TogetherAI":
+        if Together is None:
+            raise ImportError("Install the together package to use the TogetherAI backend")
         api_key = os.getenv("TOGETHER_API_KEY")
         if not api_key:
             raise ValueError("TOGETHER_API_KEY environment variable not set")
@@ -175,7 +250,7 @@ def model_inference(prompt, max_retries=3, retry_delay=1):
 def _make_api_call(prompt):
     """Internal function to make the actual API call"""
     global provider, client, model
-    if provider == "OpenAI":
+    if provider in ("OpenAI", "OpenRouter"):
         if model.startswith("gpt-5"):
             completion = client.chat.completions.create(
                 max_completion_tokens=16384,
@@ -267,13 +342,19 @@ def extract_code_and_metadata(response_text):
     return (results["code:"], results["explanation:"], results["trigger:"],
             results["payload:"], results["taxonomy:"])
 
+def safe_filename_part(value):
+    """Convert provider/model slugs into filesystem-safe path components."""
+    safe_value = re.sub(r"[^A-Za-z0-9._-]+", "_", value)
+    return safe_value.strip("._-") or "model"
+
 def check_files_exist(design_name, base_directory, vulnerability_id, model_name, version_number):
     """Check if both Verilog and taxonomy files already exist"""
     base_name = os.path.splitext(design_name)[0]
-    directory = os.path.join(base_directory, model_name, base_name)
+    safe_model_name = safe_filename_part(model_name)
+    directory = os.path.join(base_directory, safe_model_name, base_name)
     
-    verilog_filename = f"{base_name}_H{vulnerability_id}_{model_name}_A{version_number}.v"
-    taxonomy_filename = f"{base_name}_H{vulnerability_id}_{model_name}_A{version_number}_taxonomy.txt"
+    verilog_filename = f"{base_name}_H{vulnerability_id}_{safe_model_name}_A{version_number}.v"
+    taxonomy_filename = f"{base_name}_H{vulnerability_id}_{safe_model_name}_A{version_number}_taxonomy.txt"
     
     verilog_path = os.path.join(directory, verilog_filename)
     taxonomy_path = os.path.join(directory, taxonomy_filename)
@@ -283,10 +364,11 @@ def check_files_exist(design_name, base_directory, vulnerability_id, model_name,
 def save_vulnerable_design(design_name, verilog_code, base_directory, vulnerability_id, model_name, version_number):
     """Save modified Verilog design with validation"""
     base_name = os.path.splitext(design_name)[0]
-    directory = os.path.join(base_directory, model_name, base_name)
+    safe_model_name = safe_filename_part(model_name)
+    directory = os.path.join(base_directory, safe_model_name, base_name)
     os.makedirs(directory, exist_ok=True)
     
-    filename = f"{base_name}_H{vulnerability_id}_{model_name}_A{version_number}.v"
+    filename = f"{base_name}_H{vulnerability_id}_{safe_model_name}_A{version_number}.v"
     file_path = os.path.join(directory, filename)
     
     # Validate Verilog code
@@ -319,7 +401,8 @@ def save_vulnerable_design(design_name, verilog_code, base_directory, vulnerabil
 def save_vulnerability_description(design_name, base_directory, vulnerability_id, explanation, trigger, payload, taxonomy, model_name, version_number):
     """Save vulnerability metadata"""
     base_name = os.path.splitext(design_name)[0]
-    directory = os.path.join(base_directory, model_name, base_name)
+    safe_model_name = safe_filename_part(model_name)
+    directory = os.path.join(base_directory, safe_model_name, base_name)
     os.makedirs(directory, exist_ok=True)
     
     description = f"""Design: {design_name}
@@ -339,7 +422,7 @@ Payload:
 Taxonomy:
 {taxonomy}"""
     
-    filename = f"{base_name}_H{vulnerability_id}_{model_name}_A{version_number}_taxonomy.txt"
+    filename = f"{base_name}_H{vulnerability_id}_{safe_model_name}_A{version_number}_taxonomy.txt"
     file_path = os.path.join(directory, filename)
     
     with open(file_path, "w") as f:
@@ -495,10 +578,13 @@ if __name__ == "__main__":
   
   # Use different provider
   python GHOST_Trojan_GPT.py --backend Anthropic --model claude-3-5-sonnet-20241022
+
+  # Use OpenRouter with OPENROUTER_API_KEY set in .env
+  python GHOST_Trojan_GPT.py --backend OpenRouter --model google/gemini-3-flash-preview
 """
     )
-    parser.add_argument('--backend', type=str, default="OpenAI", choices=["OpenAI", "Anthropic", "Google", "TogetherAI"], help='Model provider name')
-    parser.add_argument('--model', type=str, required=True, help='Model name to use (e.g., gpt-4, claude-2, gemini-pro, together-gpt4-turbo)')
+    parser.add_argument('--backend', type=str, default="OpenRouter", choices=["OpenAI", "OpenRouter", "Anthropic", "Google", "TogetherAI"], help='Model provider name')
+    parser.add_argument('--model', type=str, default="google/gemini-3-flash-preview", help='Model name to use (e.g., google/gemini-3-flash-preview, openai/gpt-4.1, gpt-4, claude-2, gemini-pro, together-gpt4-turbo)')
     parser.add_argument('--design', type=str, help='Specific design file to process (e.g., aes_core.v)')
     parser.add_argument('--input-dir', type=str, default='../data', help='Input directory containing .v files')
     parser.add_argument('--output-dir', type=str, default='aes', help='Output directory')

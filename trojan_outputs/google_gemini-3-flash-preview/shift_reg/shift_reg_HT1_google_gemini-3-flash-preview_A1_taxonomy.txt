@@ -1,0 +1,29 @@
+Design: shift_reg.v
+Vulnerability ID: T1
+Model: google/gemini-3-flash-preview
+Attempts: 1
+
+Explanation:
+A 16-bit counter is added to track clock cycles, and a conditional statement is inserted into the main shift logic to alter behavior once the counter hits a threshold. This subtly flips the incoming bit, resulting in incorrect data stored in the register without stopping operation.
+
+Trigger:
+The trigger is an internal time-based mechanism that activates when the 16-bit `trigger_counter` reaches its maximum value (65,535 cycles). This makes the malfunction infrequent and difficult to detect during short-duration functional verification or simulation.
+
+Payload:
+when the counter reaches a specific value, the shift logic is corrupted
+        if (trigger_counter == 16'hFFFF) begin
+            data_out <= {data_out[6:0], ~shift_in}; // Inverts the input bit
+        end else begin
+            data_out <= {data_out[6:0], shift_in}; // Normal functionality
+        end
+        // trojan_insertion_end //
+    end
+end
+
+Taxonomy:
+Insertion phase: Design
+Abstraction level: Register-transfer level
+Activation mechanism: Triggered internally (Time-based counter)
+Effects: change functionality
+Location: I/O (Shift Register Path)
+Characteristics: Distributed, Small (Functional)

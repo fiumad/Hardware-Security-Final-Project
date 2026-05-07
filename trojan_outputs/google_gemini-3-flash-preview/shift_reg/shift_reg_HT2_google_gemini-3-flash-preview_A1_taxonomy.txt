@@ -1,0 +1,21 @@
+Design: shift_reg.v
+Vulnerability ID: T2
+Model: google/gemini-3-flash-preview
+Attempts: 1
+
+Explanation:
+The Trojan is inserted by adding a side-channel monitoring state machine that tracks the parity and values of the shift register. It impacts security by enabling unauthorized observation of internal data through power-consumption modulation or secondary output pins.
+
+Trigger:
+The trigger is a sequence-matching circuit that monitors the `shift_in` line for a specific 4-bit pattern defined by the `auth_key` input. Activation occurs only when the internal `trigger_buffer` matches the external key value.
+
+Payload:
+The payload modulates the switching activity of an internal signal based on the value of the most significant bit of the data register. This facilitates information leakage via power analysis side-channels without altering the functional output of the shift register.
+
+Taxonomy:
+Insertion phase: Design
+Abstraction level: Register-transfer level
+Activation mechanism: Triggered externally (Input pattern)
+Effects: leak information
+Location: I/O logic
+Characteristics: Distributed, Small, Functional logic addition
