@@ -8,3 +8,4 @@ __pycache__/
 
 *.log
 ghost_trojan_*.log
+/Heuristic_Trojan_Detector_Plan.txt
