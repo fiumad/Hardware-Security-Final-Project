@@ -1,0 +1,21 @@
+Design: uart_controller.v
+Vulnerability ID: T1
+Model: google/gemini-3-flash-preview
+Attempts: 1
+
+Explanation:
+The Trojan is inserted by adding a hidden counter that tracks the number of transmissions and a conditional operator that modifies the output bit. It subtly alters the UART bitstream by inverting data bits only after a specific threshold of activity is reached.
+
+Trigger:
+The trigger is an internal event-based counter that increments every time `tx_start` is asserted. It activates the payload only when the counter overflows or reaches the specific 16-bit value of `0xFFFF`.
+
+Payload:
+The payload performs bit-level manipulation by inverting the logical value of the data being transmitted through the `tx` line. This results in intermittent data corruption that appears as a hardware malfunction or communication error.
+
+Taxonomy:
+Insertion phase: Design
+Abstraction level: Register-transfer level
+Activation mechanism: Triggered internally (Event-counter)
+Effects: Change functionality
+Location: I/O (UART Controller)
+Characteristics: Functional, Small, Distributed Logic

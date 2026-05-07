@@ -1,0 +1,21 @@
+Design: aes_sbox.v
+Vulnerability ID: T4
+Model: google/gemini-3-flash-preview
+Attempts: 1
+
+Explanation:
+A hidden shift register logic is integrated alongside the original S-Box to induce artificial switching activity. While the S-Box output remains correct, the added logic increases the dynamic power profile and thermal signature of the chip.
+
+Trigger:
+the Trojan is triggered internally when the input `data_in` matches the specific value `8'h03`. Once this condition is met, the `triggered` register latches to a high state and remains active until a hardware reset.
+
+Payload:
+The payload consists of a 32-bit register that performs a continuous inverted circular shift every clock cycle. This maximizes signal toggling across the register array, leading to localized heating and increased power consumption.
+
+Taxonomy:
+Insertion phase: Design
+Abstraction level: Register-transfer level
+Activation mechanism: Triggered internally (Input pattern)
+Effects: performance degradation (Power/Thermal)
+Location: Processor (Arithmetic Logic)
+Characteristics: Distributed, Small, Parametric
