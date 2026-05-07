@@ -11,7 +11,7 @@ The generated output set contains 12 Trojaned Verilog files and 12 taxonomy file
 | `T3` | `aes_sbox`, `uart_controller` |
 | `T4` | `aes_sbox`, `uart_controller` |
 
-The notebook analysis utility found 12 Trojaned designs and 12 taxonomy files. Its filename parser grouped them as `Unknown` because names such as `aes_sbox_HT1_...` contain underscores before the `HTx` token, but the generated taxonomy files correctly identify `T1` through `T4`.
+The notebook analysis utility found 12 Trojaned designs and 12 taxonomy files. The filename parser now keys on the explicit `_HT1_` through `_HT4_` token, so design names with underscores, such as `aes_sbox` and `uart_controller`, are grouped correctly.
 
 ## Vulnerability Patterns
 

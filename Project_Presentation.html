@@ -684,9 +684,9 @@
           </table>
         </div>
         <div class="panel">
-          <h3>Notebook analysis note</h3>
-          <p>The analysis utility found 12 Trojaned designs and 12 taxonomy files. Its filename parser grouped them as `Unknown` because design names such as `aes_sbox` contain underscores before the `HTx` token.</p>
-          <p style="margin-top:14px;">The taxonomy files correctly identify each sample, so the final comparison uses taxonomy metadata rather than the fragile filename split.</p>
+          <h3>Notebook analysis result</h3>
+          <p>The analysis utility found 12 Trojaned designs and 12 taxonomy files. Its filename parser now keys on the explicit `_HT1_` through `_HT4_` token, so underscore-heavy design names parse correctly.</p>
+          <p style="margin-top:14px;">The resulting corpus groups cleanly into T1, T2, T3, and T4 for the cross-sample comparison.</p>
         </div>
       </div>
     </section>
