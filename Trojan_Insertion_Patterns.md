@@ -45,16 +45,16 @@ The notebook analysis utility found 12 Trojaned designs and 12 taxonomy files. I
 
 ## Notebook Validation Notes
 
-The validation utility ran on the first 5 generated Verilog files and reported:
+The validation utility ran on all 12 generated Verilog files and reported:
 
 | Check | Result |
 | --- | --- |
-| Module structure found | 5/5 |
-| Trojan markers detected | 5/5 |
-| Syntax validation passed | 5/5 |
-| Trojan indicators found | 5/5 |
+| Module structure found | 12/12 |
+| Trojan markers detected | 12/12 |
+| Syntax validation passed | 12/12 |
+| Trojan indicators found | 12/12 |
 
-The utility reported suspicious-pattern counts from 3 to 10 in the sampled files, mainly from equality comparisons, hardcoded constants, and counter-like updates.
+The utility reported suspicious-pattern counts from 2 to 10 across the generated files, mainly from equality comparisons, hardcoded constants, and counter-like updates.
 
 ## Practical Review Cues
 

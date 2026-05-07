@@ -739,13 +739,13 @@
       <div class="body two">
         <div class="metric-grid">
           <div class="metric"><div class="value">12</div><div class="label">Files discovered by validation function</div></div>
-          <div class="metric"><div class="value">5</div><div class="label">Files actually validated due to `[:5]` loop limit</div></div>
-          <div class="metric"><div class="value">5/5</div><div class="label">Module structure found</div></div>
-          <div class="metric"><div class="value">5/5</div><div class="label">Syntax validation passed</div></div>
+          <div class="metric"><div class="value">12</div><div class="label">Files validated after removing `[:5]` limit</div></div>
+          <div class="metric"><div class="value">12/12</div><div class="label">Module structure found</div></div>
+          <div class="metric"><div class="value">12/12</div><div class="label">Syntax validation passed</div></div>
         </div>
         <div class="panel">
-          <h3>Key issue</h3>
-          <p>The validation function reports "Validating 12 Trojaned designs", but the implementation checks only the first five files. We preserved that limitation in the report rather than overstating coverage.</p>
+          <h3>Validation scope</h3>
+          <p>The original validation loop accidentally used `verilog_files[:5]`. After removing that slice, the notebook validation function checks the full generated sample set.</p>
           <div class="note" style="margin-top:18px;">No optional functional testbench was saved in the notebook output. The evidence covers module structure, marker detection, suspicious-pattern checks, and `iverilog` syntax validation.</div>
         </div>
       </div>
@@ -758,11 +758,18 @@
           <table>
             <thead><tr><th>Sample</th><th>Type</th><th>Module</th><th>Markers</th><th>Suspicious patterns</th><th>Syntax</th><th>Issues</th></tr></thead>
             <tbody>
-              <tr><td>alu_simple_HT2</td><td>T2</td><td>Pass</td><td>Pass</td><td>10</td><td>Pass</td><td>None</td></tr>
+              <tr><td>aes_sbox_HT1</td><td>T1</td><td>Pass</td><td>Pass</td><td>4</td><td>Pass</td><td>None</td></tr>
+              <tr><td>aes_sbox_HT2</td><td>T2</td><td>Pass</td><td>Pass</td><td>3</td><td>Pass</td><td>None</td></tr>
+              <tr><td>aes_sbox_HT3</td><td>T3</td><td>Pass</td><td>Pass</td><td>4</td><td>Pass</td><td>None</td></tr>
+              <tr><td>aes_sbox_HT4</td><td>T4</td><td>Pass</td><td>Pass</td><td>2</td><td>Pass</td><td>None</td></tr>
               <tr><td>alu_simple_HT1</td><td>T1</td><td>Pass</td><td>Pass</td><td>3</td><td>Pass</td><td>None</td></tr>
+              <tr><td>alu_simple_HT2</td><td>T2</td><td>Pass</td><td>Pass</td><td>10</td><td>Pass</td><td>None</td></tr>
               <tr><td>shift_reg_HT1</td><td>T1</td><td>Pass</td><td>Pass</td><td>3</td><td>Pass</td><td>None</td></tr>
               <tr><td>shift_reg_HT2</td><td>T2</td><td>Pass</td><td>Pass</td><td>3</td><td>Pass</td><td>None</td></tr>
-              <tr><td>aes_sbox_HT1</td><td>T1</td><td>Pass</td><td>Pass</td><td>4</td><td>Pass</td><td>None</td></tr>
+              <tr><td>uart_controller_HT1</td><td>T1</td><td>Pass</td><td>Pass</td><td>3</td><td>Pass</td><td>None</td></tr>
+              <tr><td>uart_controller_HT2</td><td>T2</td><td>Pass</td><td>Pass</td><td>4</td><td>Pass</td><td>None</td></tr>
+              <tr><td>uart_controller_HT3</td><td>T3</td><td>Pass</td><td>Pass</td><td>6</td><td>Pass</td><td>None</td></tr>
+              <tr><td>uart_controller_HT4</td><td>T4</td><td>Pass</td><td>Pass</td><td>4</td><td>Pass</td><td>None</td></tr>
             </tbody>
           </table>
         </div>
