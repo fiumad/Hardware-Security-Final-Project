@@ -1,33 +1,65 @@
 # Trojan Insertion Pattern Summary
 
-This summary is based on the recorded outputs in `Hardware_Trojan_Insertion_Lab.ipynb` and the vulnerability definitions in `GHOST_Trojan_GPT.py`.
+This summary is based on the generated files under `trojan_outputs/google_gemini-3-flash-preview/`, the taxonomy files produced by `GHOST_Trojan_GPT.py`, and the notebook analysis cells in `Hardware_Trojan_Insertion_Lab.ipynb`.
 
-The notebook contains executed examples for `T1` and `T2`: a detailed single-design `T1` insertion on `simple_counter`, plus a batch run that generated `T1` and `T2` variants for `alu_simple` and `shift_reg`. The notebook lists `T3` and `T4` and creates a batch configuration for all four types, but that later batch cell was not executed in the saved outputs.
+The generated output set contains 12 Trojaned Verilog files and 12 taxonomy files:
 
-| Type | Vulnerability | Observed or Expected Trigger Pattern | Observed or Expected Payload Pattern | Common Inserted Structures | Stealth / Detectability Pattern | Evidence in Notebook |
-| --- | --- | --- | --- | --- | --- | --- |
-| `T1` | Change functionality | Internal event-count trigger. The detailed `simple_counter` example activates after `enable` has been asserted for 10 clock cycles. This uses a small counter and a hard-coded threshold constant. | Functional result is subtly altered after activation. In the counter example, the count changes from increment-by-1 to increment-by-2. | Extra trigger counter, trigger latch, local parameter/magic constant such as `4'd10`, conditional branch around original datapath update. | Looks like ordinary state/control logic, but exposes patterns such as threshold comparisons, extra persistent state, and arithmetic changes under a rare branch. | Executed single insertion for `simple_counter`; batch output also generated `HT1` files for `alu_simple` and `shift_reg`. |
-| `T2` | Leak information | Pattern-detection trigger on functional inputs. The displayed `shift_reg` taxonomy says activation occurs when the pattern `101` is detected. | Covert serialization of internal state. The displayed `shift_reg` example leaks `data_out` LSB-first on an added `trojan_leak_out` output. | Pattern shift register, bit counter, active flag, added output or covert channel, serialization mux/conditional. | More visible than `T1` when it adds ports; internally it resembles debug/status logic. Strong indicators include new output channels, serial leak counters, and direct access to internal registers. | Executed batch output includes `HT2` files for `alu_simple` and `shift_reg`; notebook prints the `shift_reg` T2 code and taxonomy excerpts. |
-| `T3` | Denial of service | Rare sequence-of-events trigger, usually expressed as a counter, state sequence detector, or magic condition over existing control signals. | Temporarily disables or stalls the module. Expected payloads include suppressing enables, holding outputs/state, forcing busy/reset-like states, or blocking writes. | Sequence detector, rare-condition comparator, disable/stall flag, gating around clock-enable or control paths. | Can resemble legitimate error handling, backpressure, reset, or flow-control logic. Detection should focus on unusual state-holding branches and conditions that suppress normal updates. | Listed in the notebook and defined in `GHOST_Trojan_GPT.py`; no saved executed `T3` insertion output is present. |
-| `T4` | Performance degradation | Specific event trigger or low-visibility always-on activity. The configured strategy asks for a continuously running shift register or accumulator that activates on a specific event. | Increased switching activity and power consumption while preserving primary logical outputs. | Free-running or conditionally enabled shift register, accumulator, toggling register bank, extra arithmetic chain. | Functionally silent, so it is more likely to evade ordinary simulation. Static clues include unused or weakly connected registers, high-toggle logic, and accumulators that do not affect outputs. | Listed in the notebook and defined in `GHOST_Trojan_GPT.py`; no saved executed `T4` insertion output is present. |
+| Type | Generated Designs |
+| --- | --- |
+| `T1` | `aes_sbox`, `alu_simple`, `shift_reg`, `uart_controller` |
+| `T2` | `aes_sbox`, `alu_simple`, `shift_reg`, `uart_controller` |
+| `T3` | `aes_sbox`, `uart_controller` |
+| `T4` | `aes_sbox`, `uart_controller` |
+
+The notebook analysis utility found 12 Trojaned designs and 12 taxonomy files. Its filename parser grouped them as `Unknown` because names such as `aes_sbox_HT1_...` contain underscores before the `HTx` token, but the generated taxonomy files correctly identify `T1` through `T4`.
+
+## Vulnerability Patterns
+
+| Type | Vulnerability | Generated Count | Trigger Patterns Observed | Payload Patterns Observed | Common Inserted Structures | Detection Cues |
+| --- | --- | ---: | --- | --- | --- | --- |
+| `T1` | Change functionality | 4 | Time/event counters combined with rare values. Examples include 16-bit counters reaching `0xFFFF` or `16'hFFFF`, `a == 0xFF`, AES input `0xFF`, and UART `tx_start` event overflow. | Silent functional corruption: wrong AES S-box constant `0xEE`, ALU add off-by-one, inverted shift input bit, inverted UART transmit bit. | Hidden counters, trigger flags, rare-value comparators, conditional branches inside normal datapath operations. | Extra sequential state in otherwise simple combinational/sequential blocks; hardcoded thresholds; arithmetic/bit inversions under narrow conditions. |
+| `T2` | Leak information | 4 | Sequence, duration, and pattern triggers. Examples include `trigger_signal` held high for 16 cycles, ALU op sequence `010 -> 011 -> 001`, shift-register pattern matching against `auth_key`, and 255-cycle UART delay after reset. | Covert information leakage through output behavior or side channels: parity on `leak_port`, leaking ALU input `a` through `result`, modulating switching activity from `data_out` MSB, XORing internal data with UART transmit bits. | Shadow/secret buffers, sequence detectors, trigger state machines, covert ports, parity logic, XOR/modulation logic. | Added observability paths, new ports or repurposed outputs, direct reads of internal data, sequence-detection state. |
+| `T3` | Denial of service | 2 | Rare event counters. AES activates after 65,535 occurrences of `8'h03`; UART activates after 65,535 idle receptions of byte `0xFF`. | Availability failure: AES S-box output forced to `8'h00`; UART `tx` forced high/idle so valid data is not transmitted. | Long counters, activation registers, rare input comparators, output override muxes. | Branches that suppress normal updates or force constant outputs; reset/idle-like behavior activated by unlikely counters. |
+| `T4` | Performance degradation | 2 | Specific input/event triggers. AES activates when `data_in == 8'h03`; UART activates after 10 occurrences of byte `0xFF`. | Functionally silent high-toggle activity: 32-bit inverted circular shift, wide feedback/toggling register updated with `~power_sink_reg + 32'h55555555`. | Hidden shift registers, accumulators/power sink registers, trigger latch, event counter. | Registers that toggle but do not feed functional outputs; high-activity constants; parametric/power-only payloads. |
+
+## Static Metrics From Generated Verilog
+
+| Type | Files | Avg. Lines | Avg. `if` Statements | Avg. `reg` Declarations | Avg. Hardcoded Constants | Avg. Counter-Like Increments | Avg. Equality Comparisons |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `T1` | 4 | 48.2 | 3.5 | 2.5 | 10.2 | 1.2 | 1.5 |
+| `T2` | 4 | 57.8 | 4.8 | 3.8 | 14.8 | 0.8 | 2.8 |
+| `T3` | 2 | 57.5 | 4.5 | 3.5 | 14.5 | 1.5 | 2.0 |
+| `T4` | 2 | 61.5 | 5.5 | 4.5 | 15.5 | 1.0 | 1.0 |
 
 ## Cross-Type Patterns
 
-| Pattern | Appears In | Notes |
+| Pattern | Appears In | Examples From Outputs |
 | --- | --- | --- |
-| Counters | `T1`, `T2`, likely `T3`; sometimes `T4` | Used for time/event triggers, bit serialization, and rare activation windows. |
-| Magic constants | `T1`, `T2`, likely `T3` | Examples include `4'd10` for delayed activation and `3'b101` for pattern detection. |
-| Rare conditions | All types | Central stealth mechanism: preserve normal behavior until a threshold, pattern, or uncommon sequence occurs. |
-| Trigger latch / active flag | `T1`, `T2`, likely `T3` and `T4` | Stores activation state after a rare condition is detected. |
-| Added internal state | All types | Registers are the main footprint: counters, shift registers, activity flags, accumulators, or shadow state. |
-| Original-functionality preservation | All types | The generated prompt explicitly asks to maintain normal functionality, so inserted logic tends to wrap existing behavior rather than replace it outright. |
-| Covert observability channel | `T2` | The observed T2 example adds `trojan_leak_out`; other designs may hide this through existing outputs or side channels. |
-| Silent resource/power impact | `T4` | Expected to avoid changing functional outputs while increasing toggle activity. |
+| Counters | `T1`, `T2`, `T3`, `T4` | `16'hFFFF` time bombs, 16-cycle external trigger duration, 255-cycle UART delay, 10-event UART power trigger. |
+| Magic constants | `T1`, `T2`, `T3`, `T4` | `0xFFFF`, `8'h03`, `0xFF`, `0xEE`, ALU op sequence `010/011/001`, `32'h55555555`. |
+| Rare conditions | `T1`, `T2`, `T3`, `T4` | Long counters, uncommon byte values, multi-cycle operation sequences, key/pattern matches. |
+| Trigger latch / active flag | `T1`, `T2`, `T3`, `T4` | Persistent activation registers used after a threshold or pattern match. |
+| Added internal state | `T1`, `T2`, `T3`, `T4` | Counters, shadow buffers, sequence states, power sink registers, shift registers. |
+| Output override | `T1`, `T2`, `T3` | Corrupting normal result bits, leaking internal values through outputs, forcing DoS constants. |
+| Functionally silent side effect | `T2`, `T4` | Side-channel modulation and high-toggle registers that preserve nominal functional output. |
+
+## Notebook Validation Notes
+
+The validation utility ran on the first 5 generated Verilog files and reported:
+
+| Check | Result |
+| --- | --- |
+| Module structure found | 5/5 |
+| Trojan markers detected | 5/5 |
+| Syntax validation passed | 5/5 |
+| Trojan indicators found | 5/5 |
+
+The utility reported suspicious-pattern counts from 3 to 10 in the sampled files, mainly from equality comparisons, hardcoded constants, and counter-like updates.
 
 ## Practical Review Cues
 
-- Compare Trojaned files against clean designs for added `reg`, `localparam`, comparator, and conditional assignments.
-- Inspect thresholds and binary constants that do not correspond to documented protocol states or datapath requirements.
-- Trace any newly added output or debug-like signal back to internal data paths.
-- Review branches that hold, skip, or alter normal state updates under narrow conditions.
-- For performance-degradation variants, look for extra state that toggles but does not contribute to module outputs.
+- Search for added `reg`, `localparam`, equality comparators, and conditional assignments near output logic.
+- Inspect hardcoded thresholds and byte constants that are not part of the original protocol or truth table.
+- Trace any shadow register, covert output, or parity/XOR logic back to internal signals.
+- Review branches that force constants, hold idle values, invert bits, or skip normal state updates.
+- For `T4`, look for toggling state that does not contribute to functional outputs but increases switching activity.
